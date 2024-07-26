@@ -8,3 +8,19 @@ build-image:
     - docker build --pull -t $CI_REGISTRY_IMAGE:$CI_COMMIT_BRANCH .
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_BRANCH
 
+update-services:
+  stage: update
+  image: alpine/curl
+  script:
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        echo "Deploying to main..."
+        echo "Webhook URL: $WEBHOOK_DEPLOY_MAIN"
+        curl -X POST http://manager-api/manager/update_services -H "Content-Type: application/json" -d "{\"image_name\": \"$CI_REGISTRY_IMAGE:$CI_COMMIT_BRANCH\"}"
+      elif [ "$CI_COMMIT_BRANCH" = "homolog" ]; then
+        echo "Deploying to homolog..."
+        echo "Webhook URL: $WEBHOOK_DEPLOY_HOMOLOG"
+        curl -X POST http://manager-api/manager/update_services -H "Content-Type: application/json" -d "{\"image_name\": \"$CI_REGISTRY_IMAGE:$CI_COMMIT_BRANCH\"}"
+      else
+        echo "No deployment for branch $CI_COMMIT_BRANCH"
+      fi
