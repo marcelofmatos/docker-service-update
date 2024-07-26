@@ -18,11 +18,11 @@ update-services:
       if [ "$CI_COMMIT_BRANCH" = "main" ]; then
         echo "Deploying to main..."
         echo "Webhook URL: $WEBHOOK_DEPLOY_MAIN"
-        curl --fail -X POST $WEBHOOK_DEPLOY_MAIN -H "Content-Type: application/json" -d "{\"image_name\": \"$CI_REGISTRY_IMAGE:$CI_COMMIT_BRANCH\"}"
+        curl --silent --fail -X POST $WEBHOOK_DEPLOY_MAIN -H "Content-Type: application/json" -d "{\"image_name\": \"$CI_REGISTRY_IMAGE:$CI_COMMIT_BRANCH\"}"
       elif [ "$CI_COMMIT_BRANCH" = "homolog" ]; then
         echo "Deploying to homolog..."
         echo "Webhook URL: $WEBHOOK_DEPLOY_HOMOLOG"
-        curl --fail -X POST $WEBHOOK_DEPLOY_HOMOLOG -H "Content-Type: application/json" -d "{\"image_name\": \"$CI_REGISTRY_IMAGE:$CI_COMMIT_BRANCH\"}"
+        curl --silent --fail -X POST $WEBHOOK_DEPLOY_HOMOLOG -H "Content-Type: application/json" -d "{\"image_name\": \"$CI_REGISTRY_IMAGE:$CI_COMMIT_BRANCH\"}"
       else
         echo "No deployment for branch $CI_COMMIT_BRANCH"
       fi
