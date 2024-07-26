@@ -21,7 +21,7 @@ def update_services():
             service_image = service_info['Spec']['TaskTemplate']['ContainerSpec']['Image']
 
             if image_name in service_image:
-                service.update(image=image_name)
+                service.update(image=image_name, force_update=True)
                 # Adiciona o nome do serviço ao invés do ID
                 updated_services.append(service.name)
 
