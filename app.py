@@ -4,7 +4,7 @@ import docker
 app = Flask(__name__)
 client = docker.from_env()
 
-@app.route('/manager/update_services', methods=['POST'])
+@app.route('/update_services', methods=['POST'])
 def update_services():
     data = request.json
     image_name = data.get('image_name')
@@ -22,7 +22,8 @@ def update_services():
 
             if image_name in service_image:
                 service.update(image=image_name)
-                updated_services.append(service_info['ID'])
+                # Adiciona o nome do serviço ao invés do ID
+                updated_services.append(service.name)
 
         return jsonify({
             'message': 'Services updated successfully',
