@@ -5,16 +5,18 @@ stages:
 build-image:
   stage: build
   script:
+    - IMAGE_NAME="$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME"
     - docker login -u "gitlab-ci-token" -p $CI_JOB_TOKEN $CI_REGISTRY
-    - docker build --pull -t $CI_REGISTRY_IMAGE:$CI_COMMIT_BRANCH .
-    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_BRANCH
+    - docker build --pull -t $IMAGE_NAME .
+    - docker push $IMAGE_NAME
 
 update-services:
   stage: update
   image: alpine/curl
   script:
     - |
-      echo "IMAGE_NAME=$CI_REGISTRY_IMAGE:$CI_COMMIT_BRANCH"
+      IMAGE_NAME="$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME"
+      echo "IMAGE_NAME=$IMAGE_NAME"
       if [ "$CI_COMMIT_BRANCH" = "main" ]; then
         echo "Deploying to main..."
         echo "Webhook URL: $WEBHOOK_DEPLOY_MAIN"
