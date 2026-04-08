@@ -4,6 +4,8 @@
 ![Flask](https://img.shields.io/badge/flask-2.x-lightgrey?logo=flask)
 ![Docker](https://img.shields.io/badge/docker-swarm-2496ED?logo=docker&logoColor=white)
 ![GitLab CI](https://img.shields.io/badge/gitlab--ci-enabled-FC6D26?logo=gitlab&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/github--actions-enabled-2088FF?logo=githubactions&logoColor=white)
+![GHCR](https://img.shields.io/badge/registry-ghcr.io-181717?logo=github&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 API HTTP leve que atua como webhook de deploy para atualizar serviços no **Docker Swarm** automaticamente. Recebe o nome de uma imagem e força o re-deploy de todos os serviços que a utilizam.
@@ -17,6 +19,7 @@ API HTTP leve que atua como webhook de deploy para atualizar serviços no **Dock
 - [Pré-requisitos](#pré-requisitos)
 - [Rodando localmente](#rodando-localmente)
 - [Uso da API](#uso-da-api)
+- [Integração com GitHub Actions](#integração-com-github-actions)
 - [Integração com GitLab CI/CD](#integração-com-gitlab-cicd)
 - [Variáveis de ambiente](#variáveis-de-ambiente)
 - [Deploy no Docker Swarm](#deploy-no-docker-swarm)
@@ -33,10 +36,10 @@ Em ambientes com Docker Swarm, quando uma nova versão de uma imagem é publicad
 ## Como funciona
 
 ```
-GitLab CI → POST /update_services → Docker Manager API → docker service update --force
+CI/CD Pipeline → POST /update_services → Docker Manager API → docker service update --force
 ```
 
-1. O pipeline constrói e publica a imagem no registry
+1. O pipeline constrói e publica a imagem no registry (GHCR ou GitLab Registry)
 2. O pipeline chama o webhook (esta API) com o nome da imagem
 3. A API lista todos os serviços do Swarm e filtra os que usam aquela imagem
 4. Cada serviço encontrado é atualizado com `force_update=True`
@@ -60,11 +63,18 @@ pip install -r requirements.txt
 python app.py
 ```
 
-**Com Docker:**
+**Com Docker (imagem local):**
 
 ```bash
 docker build -t docker-manager-api .
 docker run -p 80:80 -v /var/run/docker.sock:/var/run/docker.sock docker-manager-api
+```
+
+**Com a imagem publicada no GHCR:**
+
+```bash
+docker run -p 80:80 -v /var/run/docker.sock:/var/run/docker.sock \
+  ghcr.io/seu-org/docker-manager-api:latest
 ```
 
 > A API ficará disponível em `http://localhost:80`.
@@ -118,29 +128,74 @@ Content-Type: application/json
 ```bash
 curl -X POST http://localhost:80/update_services \
   -H "Content-Type: application/json" \
-  -d '{"image_name": "registry.example.com/meu-projeto/meu-servico:main"}'
+  -d '{"image_name": "ghcr.io/seu-org/meu-servico:main"}'
 ```
 
 ---
 
-## Integração com GitLab CI/CD
+## Integração com GitHub Actions
 
-O pipeline `.gitlab-ci.yml` deste projeto já está configurado para:
+O projeto usa três workflows configurados em `.github/workflows/`:
 
-1. **Build:** construir e publicar a imagem no GitLab Registry
-2. **Update:** chamar o webhook de deploy conforme o branch
+### `docker-image.yml` — Build contínuo por branch
 
-Configure as seguintes variáveis no GitLab CI (Settings → CI/CD → Variables):
+Disparado em push nos branches `homolog` e `prod`, e em releases publicadas. Constrói a imagem, publica no GHCR com a tag do branch, e chama o webhook de deploy.
 
-| Variável               | Descrição                                              |
-|------------------------|--------------------------------------------------------|
-| `WEBHOOK_DEPLOY_MAIN`  | URL da API para deploy no ambiente de produção (`main`) |
-| `WEBHOOK_DEPLOY_HOMOLOG` | URL da API para deploy no ambiente de homologação    |
+```
+ghcr.io/<org>/<repo>:homolog
+ghcr.io/<org>/<repo>:prod
+```
+
+### `release-and-build.yml` — Release semântica
+
+Disparado manualmente via `workflow_dispatch`. Cria uma release no GitHub com versionamento semântico (patch/minor/major) e publica a imagem com múltiplas tags:
+
+```
+ghcr.io/<org>/<repo>:1.2.3   # versão completa
+ghcr.io/<org>/<repo>:1.2     # minor (pega últimos patches)
+ghcr.io/<org>/<repo>:1       # major (pega últimos minor.patch)
+ghcr.io/<org>/<repo>:latest  # sempre o mais recente
+```
+
+### `docker-set-tag.yml` — Associação manual de tags
+
+Workflow manual para apontar uma docker tag para uma release tag existente. Útil para promover uma imagem de `homolog` para `prod` sem rebuild.
+
+---
+
+Configure os seguintes secrets no GitHub (Settings → Secrets and variables → Actions):
+
+| Secret                   | Descrição                                              |
+|--------------------------|--------------------------------------------------------|
+| `WEBHOOK_DEPLOY_MAIN`    | URL da API para deploy no ambiente de produção         |
+| `WEBHOOK_DEPLOY_HOMOLOG` | URL da API para deploy no ambiente de homologação      |
 
 **Exemplo de chamada gerada pelo pipeline:**
 
 ```bash
-curl --silent --fail -X POST $WEBHOOK_DEPLOY_MAIN \
+curl --silent --fail -X POST "$WEBHOOK_DEPLOY_MAIN" \
+  -H "Content-Type: application/json" \
+  -d '{"image_name": "ghcr.io/seu-org/docker-manager-api:1.2.3"}'
+```
+
+## Integração com GitLab CI/CD
+
+O arquivo `.gitlab-ci.yml` está configurado para:
+
+1. **Build:** construir e publicar a imagem no GitLab Container Registry
+2. **Update:** chamar o webhook de deploy conforme o branch (`main` ou `homolog`)
+
+Configure as seguintes variáveis no GitLab CI (Settings → CI/CD → Variables):
+
+| Variável                 | Descrição                                              |
+|--------------------------|--------------------------------------------------------|
+| `WEBHOOK_DEPLOY_MAIN`    | URL da API para deploy no ambiente de produção (`main`) |
+| `WEBHOOK_DEPLOY_HOMOLOG` | URL da API para deploy no ambiente de homologação      |
+
+**Exemplo de chamada gerada pelo pipeline:**
+
+```bash
+curl --silent --fail -X POST "$WEBHOOK_DEPLOY_MAIN" \
   -H "Content-Type: application/json" \
   -d '{"image_name": "registry.gitlab.com/org/projeto:main"}'
 ```
@@ -167,7 +222,7 @@ version: "3.8"
 
 services:
   docker-manager-api:
-    image: registry.example.com/seu-projeto/docker-manager-api:main
+    image: ghcr.io/seu-org/docker-manager-api:latest
     ports:
       - "80:80"
     volumes:
