@@ -222,9 +222,9 @@ version: "3.8"
 
 services:
   docker-manager-api:
-    image: ghcr.io/seu-org/docker-manager-api:latest
+    image: ghcr.io/marcelofmatos/docker-service-update:latest
     ports:
-      - "80:80"
+      - "8088:80"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     deploy:
